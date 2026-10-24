@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Datos y exportaciones</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<div class="page">
+  <p><a href="/">Volver al chat</a></p>
+  <h1>Datos y exportaciones</h1>
+  <p style="color:var(--muted);max-width:70ch">SQLite es la fuente oficial. Los archivos CSV y JSONL son copias para análisis y solo se generan cuando tú lo pides aquí (o por la tarea programada que configures en .env).</p>
+
+  <div class="card row">
+    <label>Token de administración<input type="password" id="token" autocomplete="off"></label>
+    <button class="btn primary" id="load" type="button">Consultar datos</button>
+    <span id="status" role="status"></span>
+  </div>
+
+  <h2>Datos almacenados</h2>
+  <div class="counts" id="counts"><div>Introduce el token para ver los totales.</div></div>
+  <p id="lastExport" style="color:var(--muted)"></p>
+
+  <h2>Filtros de exportación</h2>
+  <div class="card row">
+    <label>Desde<input type="date" id="date_from"></label>
+    <label>Hasta (incluido)<input type="date" id="date_to"></label>
+    <label>Conversación (id)<input type="text" id="conversation_id"></label>
+    <label>Sesión (id)<input type="text" id="session_id"></label>
+    <label>Zona horaria<input type="text" id="tz" value="UTC" placeholder="America/Lima"></label>
+  </div>
+
+  <h2>Descargar</h2>
+  <div class="card row" id="downloads"></div>
+
+  <h2>Guardar copia en el servidor</h2>
+  <div class="card">
+    <p style="margin-top:0">Crea una carpeta nueva con todos los archivos dentro del directorio de exportación; no sobrescribe exportaciones anteriores.</p>
+    <button class="btn" id="saveDisk" type="button">Generar archivos en el servidor</button>
+    <p id="saveResult"></p>
+  </div>
+
+  <h2>Métricas de uso</h2>
+  <button class="btn" id="metrics" type="button">Calcular métricas</button>
+  <pre id="metricsOut" hidden></pre>
+</div>
+<script>
+const $ = (id) => document.getElementById(id);
+const FILES = ["interactions.csv","sessions.csv","conversations.csv","events.csv","feedback.csv","events.jsonl","interactions.jsonl"];
+$("token").value = sessionStorage.getItem("admin_token") || "";
+const hdr = () => ({ "X-Admin-Token": $("token").value });
+const filters = () => { const p = new URLSearchParams(); for (const k of ["date_from","date_to","conversation_id","session_id","tz"]) if ($(k).value.trim()) p.set(k, $(k).value.trim()); return p; };
+function say(msg, ok) { $("status").textContent = msg; $("status").className = ok ? "ok-t" : "err-t"; }
+async function call(path, opts = {}) {
+  const r = await fetch(path, { ...opts, headers: { ...(opts.headers || {}), ...hdr() } });
+  if (!r.ok) { let m = `Error HTTP ${r.status}`; try { m = (await r.json()).error.message; } catch (_) {} throw new Error(m); }
+  return r;
+}
+async function load() {
+  try {
+    sessionStorage.setItem("admin_token", $("token").value);
+    const o = await (await call("/api/admin/overview")).json();
+    const names = { users: "Usuarios", conversations: "Conversaciones", sessions: "Sesiones", messages: "Mensajes", interaction_events: "Eventos", feedback: "Valoraciones" };
+    $("counts").innerHTML = Object.entries(o.counts).map(([k, v]) => `<div><b>${v}</b>${names[k] || k}</div>`).join("");
+    $("lastExport").textContent = o.last_export ? `Última exportación al servidor: ${new Date(o.last_export.finished_at).toLocaleString()} (${o.last_export.requested_by}) en ${o.last_export.output_dir}` : "Aún no hay exportaciones guardadas en el servidor.";
+    say("Datos cargados.", true);
+  } catch (e) { say(e.message, false); }
+}
+$("downloads").innerHTML = FILES.map((f) => `<button class="btn" data-f="${f}" type="button">${f}</button>`).join("");
+$("downloads").addEventListener("click", async (e) => {
+  const f = e.target.dataset.f; if (!f) return;
+  try {
+    const r = await call(`/api/export/${f}?${filters()}`); const blob = await r.blob();
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = f; a.click(); URL.revokeObjectURL(a.href);
+    say(`${f} descargado.`, true);
+  } catch (err) { say(err.message, false); }
+});
+$("saveDisk").onclick = async () => {
+  try {
+    const b = Object.fromEntries(filters()); const tz = b.tz; delete b.tz;
+    const r = await (await call("/api/admin/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...b, tz }) })).json();
+    $("saveResult").className = "ok-t"; $("saveResult").textContent = `Listo. Carpeta: ${r.output_dir}`; load();
+  } catch (e) { $("saveResult").className = "err-t"; $("saveResult").textContent = e.message; }
+};
+$("metrics").onclick = async () => {
+  try { const m = await (await call("/api/analytics/summary")).json(); $("metricsOut").hidden = false; $("metricsOut").textContent = JSON.stringify(m, null, 2); say("Métricas calculadas.", true); }
+  catch (e) { say(e.message, false); }
+};
+$("load").onclick = load;
+if ($("token").value) load();
+</script>
+</body>
+</html>

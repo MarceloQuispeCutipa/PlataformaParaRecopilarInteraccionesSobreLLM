@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Asistente con registro de uso</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<div class="app">
+  <aside>
+    <h1>Asistente</h1>
+    <div class="sub">Modelo local: {{ model }}</div>
+    <button class="btn primary" id="newConv" type="button">Nueva conversación</button>
+    <ul id="convList" aria-label="Conversaciones anteriores"></ul>
+    <footer><a href="/admin">Datos y exportaciones</a></footer>
+  </aside>
+  <main>
+    <div class="topbar">
+      <div class="model"><span class="dot" id="dot"></span><span id="modelStatus">Comprobando el modelo…</span></div>
+      <div class="actions">
+        <button class="btn" id="exportConv" type="button" disabled>Descargar conversación</button>
+        <button class="btn danger" id="finishConv" type="button" disabled>Finalizar conversación</button>
+        <button class="btn danger" id="deleteConv" type="button" disabled>Borrar mis datos de esta conversación</button>
+      </div>
+    </div>
+    <div class="ledger idle" id="ledger" role="status"><b>Sin sesión activa</b><span>Tu primer mensaje iniciará una sesión.</span></div>
+    <div class="notice" id="notice" hidden>
+      <p><strong>Se guarda lo que escribes.</strong> Tus mensajes, las respuestas del modelo y los horarios se almacenan en el servidor
+      con un identificador seudónimo (sin nombre ni correo) para estudiar cómo se usa la IA generativa. No se recopila nada fuera de esta página.
+      Puedes borrar una conversación en cualquier momento.</p>
+      <button class="btn primary" id="accept" type="button">Entendido</button>
+    </div>
+    <div id="alerts" aria-live="assertive"></div>
+    <div id="messages" aria-live="polite"></div>
+    <form class="composer" id="composer">
+      <textarea id="input" rows="1" placeholder="Escribe tu pregunta o instrucción" aria-label="Mensaje" maxlength="8000"></textarea>
+      <button class="btn primary" id="send" type="submit">Enviar</button>
+    </form>
+  </main>
+</div>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
